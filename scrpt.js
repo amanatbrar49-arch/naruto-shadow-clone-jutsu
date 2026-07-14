@@ -1,16 +1,16 @@
 /* ============================================================
    Naruto Shadow Clone Jutsu — gesture-triggered clone effect
-   Uses MediaPipe Tasks Vision (HandLandmarker) — the actively
-   maintained replacement for the old legacy Holistic solution.
-   No trained model needed: the "Ram" seal is detected with a
-   landmark-distance heuristic (wrists together, fingertips
-   interlocked, hands raised).
+   Uses MediaPipe Tasks Vision (HandLandmarker), CPU delegate
+   for maximum browser/hardware compatibility. No trained model
+   needed: the "Ram" seal is detected with a landmark-distance
+   heuristic (wrists together, fingertips interlocked, hands
+   raised).
    ============================================================ */
 
 import {
   HandLandmarker,
   FilesetResolver,
-} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
 
 const videoElement = document.getElementById('input_video');
 const canvasElement = document.getElementById('output_canvas');
@@ -27,9 +27,9 @@ const CANVAS_H = 480;
 canvasElement.width = CANVAS_W;
 canvasElement.height = CANVAS_H;
 
-const STREAK_NEEDED = 10;     // consecutive good-scoring frames before triggering
-const JUTSU_DURATION = 4500;  // ms clones remain on screen
-const SCORE_TRIGGER = 0.8;    // 0-1 score threshold counted as "seal held"
+const STREAK_NEEDED = 10;
+const JUTSU_DURATION = 4500;
+const SCORE_TRIGGER = 0.8;
 
 let gestureStreak = 0;
 let jutsuActive = false;
@@ -49,16 +49,12 @@ function clamp01(v) {
   return Math.max(0, Math.min(1, v));
 }
 
-// hands is an array of detected hands, each a list of 21 landmarks {x,y,z}
-// Landmark indices: 0 = wrist, 4/8/12/16/20 = fingertips
 function computeSealScore(hands) {
   if (!hands || hands.length < 2) return 0;
-
   const left = hands[0];
   const right = hands[1];
 
   const wristDist = dist(left[0], right[0]);
-
   const tipIdx = [4, 8, 12, 16, 20];
   let tipTotal = 0;
   tipIdx.forEach((i) => { tipTotal += dist(left[i], right[i]); });
@@ -177,57 +173,39 @@ function drawClones(now) {
   });
 }
 
-/* ---------- setup: model + camera ---------- */
-
-async function setupHandLandmarker() {
-  console.log('[setup] loading WASM fileset…');
-  loadingText.textContent = 'Loading hand-tracking engine…';
-  const vision = await FilesetResolver.forVisionTasks(
-    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
-  );
-  console.log('[setup] WASM fileset loaded, loading model…');
-  loadingText.textContent = 'Loading hand-tracking model…';
-
-  const modelUrl =
-    "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
-
-  try {
-    handLandmarker = await HandLandmarker.createFromOptions(vision, {
-      baseOptions: { modelAssetPath: modelUrl, delegate: "GPU" },
-      runningMode: "VIDEO",
-      numHands: 2,
-    });
-    console.log('[setup] model loaded on GPU delegate');
-  } catch (gpuErr) {
-    console.warn('[setup] GPU delegate failed, retrying on CPU:', gpuErr);
-    loadingText.textContent = 'Retrying model on CPU…';
-    handLandmarker = await HandLandmarker.createFromOptions(vision, {
-      baseOptions: { modelAssetPath: modelUrl, delegate: "CPU" },
-      runningMode: "VIDEO",
-      numHands: 2,
-    });
-    console.log('[setup] model loaded on CPU delegate');
-  }
-}
+/* ---------- setup ---------- */
 
 async function setupCamera() {
-  console.log('[setup] requesting camera permission…');
   loadingText.textContent = 'Requesting camera access…';
   const stream = await navigator.mediaDevices.getUserMedia({
     video: { width: CANVAS_W, height: CANVAS_H },
     audio: false,
   });
-  console.log('[setup] camera stream acquired');
   videoElement.srcObject = stream;
   await new Promise((resolve) => {
-    videoElement.onloadeddata = () => {
-      console.log('[setup] video frame data ready');
-      resolve();
-    };
+    videoElement.onloadeddata = () => resolve();
   });
 }
 
-/* ---------- main render loop ---------- */
+async function setupHandLandmarker() {
+  loadingText.textContent = 'Loading hand-tracking engine…';
+  const vision = await FilesetResolver.forVisionTasks(
+    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+  );
+
+  loadingText.textContent = 'Loading hand-tracking model…';
+  handLandmarker = await HandLandmarker.createFromOptions(vision, {
+    baseOptions: {
+      modelAssetPath:
+        "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+      delegate: "CPU",
+    },
+    runningMode: "VIDEO",
+    numHands: 2,
+  });
+}
+
+/* ---------- render loop ---------- */
 
 function renderLoop() {
   const now = performance.now();
@@ -278,15 +256,18 @@ function withTimeout(promise, ms, label) {
 async function init() {
   try {
     await withTimeout(setupCamera(), 15000, 'Camera setup');
-    await withTimeout(setupHandLandmarker(), 20000, 'Model loading');
+    await withTimeout(setupHandLandmarker(), 25000, 'Model loading');
     loadingCard.style.display = 'none';
     await videoElement.play();
-    console.log('[setup] all done, starting render loop');
     renderLoop();
   } catch (err) {
-    loadingText.textContent = `Stuck on: ${err.message}`;
-    console.error('[setup] failed:', err);
+    loadingText.textContent = `Failed: ${err.message}`;
+    console.error('[naruto-jutsu] setup failed:', err);
   }
 }
 
-init();5
+window.addEventListener('error', (e) => {
+  console.error('[naruto-jutsu] global error:', e.message, e);
+});
+
+init();
