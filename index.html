@@ -38,5 +38,15 @@
 
   <!-- MediaPipe Tasks Vision (HandLandmarker) — loaded as an ES module inside script.js -->
   <script type="module" src="script.js"></script>
+
+  <!-- Watchdog: fires even if script.js itself fails to load/execute at all -->
+  <script>
+    setTimeout(function () {
+      var t = document.getElementById('loadingText');
+      if (t && t.textContent === 'Starting up…') {
+        t.textContent = 'script.js never ran — check the file path/deploy, or your browser console (F12) for a red error.';
+      }
+    }, 6000);
+  </script>
 </body>
 </html>
