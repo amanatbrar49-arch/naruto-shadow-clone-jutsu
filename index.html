@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Naruto Shadow Clone Jutsu</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <div id="app">
+    <header id="topbar">
+      <h1>影分身の術 <span>Shadow Clone Jutsu</span></h1>
+      <p id="hint">Cross your fingers into the Ram seal (卯) with both hands to summon your clones</p>
+    </header>
+
+    <div id="stage">
+      <video id="input_video" playsinline></video>
+      <canvas id="output_canvas"></canvas>
+
+      <div id="statusCard" class="hidden">
+        <div class="statusLabel">Naruto Shadow Clone</div>
+        <div class="statusSub">Confidence</div>
+        <div id="confidenceValue">0%</div>
+      </div>
+
+      <div id="loadingCard">
+        <div class="spinner"></div>
+        <p>Summoning MediaPipe…</p>
+      </div>
+    </div>
+
+    <footer id="controls">
+      <button id="resetBtn">Release Jutsu</button>
+      <span id="cloneCount">0 clones active</span>
+    </footer>
+  </div>
+
+  <!-- MediaPipe Holistic (hands + pose landmarks) -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/holistic/holistic.js" crossorigin="anonymous"></script>
+
+  <script src="script.js"></script>
+</body>
+</html>
