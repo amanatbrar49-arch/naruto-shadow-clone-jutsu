@@ -1,0 +1,168 @@
+:root {
+  --orange: #ff7a1a;
+  --bg: #0b0b0d;
+  --card-bg: rgba(20, 18, 16, 0.85);
+  --text: #f4ede4;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  overflow-x: hidden;
+}
+
+#app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 16px 48px;
+}
+
+#topbar {
+  text-align: center;
+  max-width: 640px;
+  margin-bottom: 18px;
+}
+
+#topbar h1 {
+  font-size: 1.6rem;
+  margin: 0 0 6px;
+  letter-spacing: 0.5px;
+}
+
+#topbar h1 span {
+  display: block;
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--orange);
+  margin-top: 2px;
+}
+
+#hint {
+  color: #a89f95;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+#stage {
+  position: relative;
+  width: min(94vw, 640px);
+  aspect-ratio: 4 / 3;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #000;
+  box-shadow: 0 0 0 1px rgba(255,122,26,0.25), 0 20px 60px rgba(0,0,0,0.6);
+}
+
+#input_video {
+  display: none;
+}
+
+#output_canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  transform: scaleX(-1); /* mirror, feels natural */
+}
+
+#statusCard {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--card-bg);
+  border: 1px solid rgba(255,122,26,0.4);
+  border-radius: 12px;
+  padding: 8px 18px;
+  text-align: center;
+  backdrop-filter: blur(6px);
+  transition: opacity 0.25s ease;
+}
+
+#statusCard.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.statusLabel {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--orange);
+}
+
+.statusSub {
+  font-size: 0.65rem;
+  color: #a89f95;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-top: 2px;
+}
+
+#confidenceValue {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+#loadingCard {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: #0b0b0d;
+  font-size: 0.9rem;
+  color: #a89f95;
+}
+
+.spinner {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 3px solid rgba(255,122,26,0.25);
+  border-top-color: var(--orange);
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+#controls {
+  margin-top: 18px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+#resetBtn {
+  background: transparent;
+  color: var(--orange);
+  border: 1px solid var(--orange);
+  border-radius: 999px;
+  padding: 8px 18px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+#resetBtn:hover {
+  background: var(--orange);
+  color: #000;
+}
+
+#cloneCount {
+  font-size: 0.8rem;
+  color: #a89f95;
+}
+
+@media (max-width: 480px) {
+  #topbar h1 { font-size: 1.3rem; }
+}
