@@ -29,9 +29,9 @@ const CANVAS_H = 480;
 canvasElement.width = CANVAS_W;
 canvasElement.height = CANVAS_H;
 
-const STREAK_NEEDED = 10;
-const JUTSU_DURATION = 4500;
-const SCORE_TRIGGER = 0.8;
+const STREAK_NEEDED = 6;      // consecutive good-scoring frames before triggering
+const JUTSU_DURATION = 4500;  // ms clones remain on screen
+const SCORE_TRIGGER = 0.65;   // 0-1 score threshold counted as "seal held"
 
 let gestureStreak = 0;
 let jutsuActive = false;
@@ -116,6 +116,11 @@ function resetJutsu() {
 }
 
 resetBtn.addEventListener('click', resetJutsu);
+
+const testBtn = document.getElementById('testBtn');
+testBtn.addEventListener('click', () => {
+  if (!jutsuActive) triggerJutsu();
+});
 
 /* ---------- smoke puffs ---------- */
 
@@ -240,6 +245,10 @@ function renderLoop() {
     } else {
       gestureStreak = Math.max(0, gestureStreak - 1);
     }
+
+    cloneCountEl.textContent = jutsuActive
+      ? `${cloneLayout.length} clones active`
+      : `hold: ${gestureStreak}/${STREAK_NEEDED}`;
 
     if (gestureStreak >= STREAK_NEEDED && !jutsuActive) {
       triggerJutsu();
