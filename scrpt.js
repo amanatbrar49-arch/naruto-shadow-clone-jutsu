@@ -1,10 +1,16 @@
 /* ============================================================
    Naruto Shadow Clone Jutsu — gesture-triggered clone effect
-   Uses MediaPipe Holistic for hand landmarks. No trained model
-   needed: the "Ram" seal is detected with a landmark-distance
-   heuristic (wrists together, fingertips interlocked, hands
-   raised), so this works the moment you open the page.
+   Uses MediaPipe Tasks Vision (HandLandmarker) — the actively
+   maintained replacement for the old legacy Holistic solution.
+   No trained model needed: the "Ram" seal is detected with a
+   landmark-distance heuristic (wrists together, fingertips
+   interlocked, hands raised).
    ============================================================ */
+
+import {
+  HandLandmarker,
+  FilesetResolver,
+} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
 
 const videoElement = document.getElementById('input_video');
 const canvasElement = document.getElementById('output_canvas');
@@ -12,6 +18,7 @@ const ctx = canvasElement.getContext('2d');
 const statusCard = document.getElementById('statusCard');
 const confidenceValueEl = document.getElementById('confidenceValue');
 const loadingCard = document.getElementById('loadingCard');
+const loadingText = document.getElementById('loadingText');
 const resetBtn = document.getElementById('resetBtn');
 const cloneCountEl = document.getElementById('cloneCount');
 
@@ -30,7 +37,7 @@ let jutsuStartTime = 0;
 let cloneSnapshot = null;
 let cloneLayout = [];
 let smokePuffs = [];
-let latestFrame = null;
+let handLandmarker = null;
 
 /* ---------- gesture scoring ---------- */
 
@@ -42,9 +49,13 @@ function clamp01(v) {
   return Math.max(0, Math.min(1, v));
 }
 
-// Landmark indices (MediaPipe hand model): 0 = wrist, 4/8/12/16/20 = fingertips
-function computeSealScore(left, right) {
-  if (!left || !right) return 0;
+// hands is an array of detected hands, each a list of 21 landmarks {x,y,z}
+// Landmark indices: 0 = wrist, 4/8/12/16/20 = fingertips
+function computeSealScore(hands) {
+  if (!hands || hands.length < 2) return 0;
+
+  const left = hands[0];
+  const right = hands[1];
 
   const wristDist = dist(left[0], right[0]);
 
@@ -53,7 +64,6 @@ function computeSealScore(left, right) {
   tipIdx.forEach((i) => { tipTotal += dist(left[i], right[i]); });
   const avgTipDist = tipTotal / tipIdx.length;
 
-  // How far the middle fingertip is above the wrist (hands raised, fingers up)
   const leftLift = left[0].y - left[12].y;
   const rightLift = right[0].y - right[12].y;
 
@@ -73,10 +83,9 @@ function triggerJutsu() {
   const snap = document.createElement('canvas');
   snap.width = CANVAS_W;
   snap.height = CANVAS_H;
-  snap.getContext('2d').drawImage(latestFrame, 0, 0, CANVAS_W, CANVAS_H);
+  snap.getContext('2d').drawImage(videoElement, 0, 0, CANVAS_W, CANVAS_H);
   cloneSnapshot = snap;
 
-  // Fan-out formation, staggered so clones "pop" in one after another
   const positions = [
     { x: -0.30, y: -0.05, scale: 0.55, delay: 0 },
     { x: -0.22, y: 0.12,  scale: 0.50, delay: 90 },
@@ -168,63 +177,116 @@ function drawClones(now) {
   });
 }
 
-/* ---------- main MediaPipe callback ---------- */
+/* ---------- setup: model + camera ---------- */
 
-function onResults(results) {
-  loadingCard.style.display = 'none';
+async function setupHandLandmarker() {
+  console.log('[setup] loading WASM fileset…');
+  loadingText.textContent = 'Loading hand-tracking engine…';
+  const vision = await FilesetResolver.forVisionTasks(
+    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+  );
+  console.log('[setup] WASM fileset loaded, loading model…');
+  loadingText.textContent = 'Loading hand-tracking model…';
+
+  const modelUrl =
+    "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
+
+  try {
+    handLandmarker = await HandLandmarker.createFromOptions(vision, {
+      baseOptions: { modelAssetPath: modelUrl, delegate: "GPU" },
+      runningMode: "VIDEO",
+      numHands: 2,
+    });
+    console.log('[setup] model loaded on GPU delegate');
+  } catch (gpuErr) {
+    console.warn('[setup] GPU delegate failed, retrying on CPU:', gpuErr);
+    loadingText.textContent = 'Retrying model on CPU…';
+    handLandmarker = await HandLandmarker.createFromOptions(vision, {
+      baseOptions: { modelAssetPath: modelUrl, delegate: "CPU" },
+      runningMode: "VIDEO",
+      numHands: 2,
+    });
+    console.log('[setup] model loaded on CPU delegate');
+  }
+}
+
+async function setupCamera() {
+  console.log('[setup] requesting camera permission…');
+  loadingText.textContent = 'Requesting camera access…';
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: { width: CANVAS_W, height: CANVAS_H },
+    audio: false,
+  });
+  console.log('[setup] camera stream acquired');
+  videoElement.srcObject = stream;
+  await new Promise((resolve) => {
+    videoElement.onloadeddata = () => {
+      console.log('[setup] video frame data ready');
+      resolve();
+    };
+  });
+}
+
+/* ---------- main render loop ---------- */
+
+function renderLoop() {
+  const now = performance.now();
 
   ctx.save();
   ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
-  ctx.drawImage(results.image, 0, 0, CANVAS_W, CANVAS_H);
-  latestFrame = results.image;
+  ctx.drawImage(videoElement, 0, 0, CANVAS_W, CANVAS_H);
 
-  const score = computeSealScore(results.leftHandLandmarks, results.rightHandLandmarks);
-  const confidencePct = Math.round(score * 100);
+  if (handLandmarker && videoElement.readyState >= 2) {
+    const result = handLandmarker.detectForVideo(videoElement, now);
+    const hands = result.landmarks || [];
 
-  statusCard.classList.toggle('hidden', score < 0.15);
-  confidenceValueEl.textContent = `${confidencePct}%`;
+    const score = computeSealScore(hands);
+    const confidencePct = Math.round(score * 100);
 
-  if (score > SCORE_TRIGGER) {
-    gestureStreak++;
-  } else {
-    gestureStreak = Math.max(0, gestureStreak - 1);
+    statusCard.classList.toggle('hidden', score < 0.15);
+    confidenceValueEl.textContent = `${confidencePct}%`;
+
+    if (score > SCORE_TRIGGER) {
+      gestureStreak++;
+    } else {
+      gestureStreak = Math.max(0, gestureStreak - 1);
+    }
+
+    if (gestureStreak >= STREAK_NEEDED && !jutsuActive) {
+      triggerJutsu();
+    }
   }
 
-  if (gestureStreak >= STREAK_NEEDED && !jutsuActive) {
-    triggerJutsu();
-  }
-
-  const now = performance.now();
   drawClones(now);
   drawSmoke(now);
-
   ctx.restore();
+
+  requestAnimationFrame(renderLoop);
 }
 
-/* ---------- bootstrap MediaPipe Holistic + camera ---------- */
+/* ---------- bootstrap ---------- */
 
-const holistic = new Holistic({
-  locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/holistic/${file}`,
-});
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms)
+    ),
+  ]);
+}
 
-holistic.setOptions({
-  modelComplexity: 1,
-  smoothLandmarks: true,
-  refineFaceLandmarks: false,
-  minDetectionConfidence: 0.6,
-  minTrackingConfidence: 0.6,
-});
+async function init() {
+  try {
+    await withTimeout(setupCamera(), 15000, 'Camera setup');
+    await withTimeout(setupHandLandmarker(), 20000, 'Model loading');
+    loadingCard.style.display = 'none';
+    await videoElement.play();
+    console.log('[setup] all done, starting render loop');
+    renderLoop();
+  } catch (err) {
+    loadingText.textContent = `Stuck on: ${err.message}`;
+    console.error('[setup] failed:', err);
+  }
+}
 
-holistic.onResults(onResults);
-
-const camera = new Camera(videoElement, {
-  onFrame: async () => {
-    await holistic.send({ image: videoElement });
-  },
-  width: CANVAS_W,
-  height: CANVAS_H,
-});
-
-camera.start().catch((err) => {
-  loadingCard.innerHTML = `<p>Camera access failed: ${err.message}. Please allow camera permissions and reload.</p>`;
-});
+init();
