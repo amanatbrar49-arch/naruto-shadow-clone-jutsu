@@ -146,7 +146,7 @@ html, body {
   gap: 16px;
 }
 
-#resetBtn {
+#resetBtn, #testBtn {
   background: transparent;
   color: var(--orange);
   border: 1px solid var(--orange);
@@ -157,7 +157,7 @@ html, body {
   transition: background 0.2s ease, color 0.2s ease;
 }
 
-#resetBtn:hover {
+#resetBtn:hover, #testBtn:hover {
   background: var(--orange);
   color: #000;
 }
