@@ -26,7 +26,7 @@
 
       <div id="loadingCard">
         <div class="spinner"></div>
-        <p>Summoning MediaPipe…</p>
+        <p id="loadingText">Summoning MediaPipe…</p>
       </div>
     </div>
 
@@ -36,10 +36,7 @@
     </footer>
   </div>
 
-  <!-- MediaPipe Holistic (hands + pose landmarks) -->
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/holistic/holistic.js" crossorigin="anonymous"></script>
-
-  <script src="script.js"></script>
+  <!-- MediaPipe Tasks Vision (HandLandmarker) — loaded as an ES module inside script.js -->
+  <script type="module" src="script.js"></script>
 </body>
 </html>
